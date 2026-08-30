@@ -129,8 +129,11 @@ An explicit reduction form should remain visible rather than inferred:
 ```text
 var norm: real64 = 0.0
 reduce(+; norm) pfor x in lat.sites:
-  norm += inner(psi[x], psi[x]).re
+  norm = inner(psi[x], psi[x]).re
 ```
+
+Inside a `reduce` block, the reduction variable names the per-iteration
+contribution, and the combiner determines how those contributions are merged.
 
 ## Example
 
