@@ -1,2 +1,2 @@
 # Quark
-A language for lattice field theory
+A natural domain-specific language for high-performance lattice field theory workloads
