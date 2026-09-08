@@ -1,19 +1,23 @@
+# First pass oracle establishing basic semantics, spaces, and execution contexts
+
 import quark
 
 quark: # wraps code in appropriate init/finalize
   let lattice: Lattice = newLattice([8, 8, 8, 16])
-  var fieldA: Field[Complex] = lattice.newScalarField()
-  var fieldB: Field[Complex] = lattice.newScalarField()
+
+  # "S" = "single" = 32, "D" = "double" = 64
+  var fieldA: Field[Complex[D]] = lattice.newScalarField(Complex[D])
+  var fieldB: Field[Complex[D]] = lattice.newScalarField(Complex[D])
 
   # every placement-sensitive operation belongs to an explicit execution context
   within Accelerator:
-    fieldA := Complex(2.0, 4.0)
-    fieldB := 2.0 # implicitly "Real(2.0)"
+    fieldA := newComplex(2.0, 4.0)
+    fieldB := 2.0 # implicitly Complex[D](2.0)
 
   within Accelerator:
     # field views preserve Quark's scoped access and data-preservation semantics
-    var fieldAView: FieldView[Complex] = fieldA.view(WriteDiscard)
-    var fieldBView: FieldView[Complex] = fieldB.view(Read)
+    var fieldAView: FieldView[Complex[D]] = fieldA.view(WriteDiscard)
+    var fieldBView: FieldView[Complex[D]] = fieldB.view(Read)
 
     # a packed site indexes one layout-defined packed group of rank-local sites
     # "parallel" macro executes the loop in parallel on the accelerator
@@ -23,8 +27,8 @@ quark: # wraps code in appropriate init/finalize
     # field views close at scope exit; later views synchronize data as required
 
   within Host:
-    var fieldAView: FieldView[Complex] = fieldA.view(Read)
-    var fieldBView: FieldView[Complex] = fieldB.view(Read)
+    var fieldAView: FieldView[Complex[D]] = fieldA.view(Read)
+    var fieldBView: FieldView[Complex[D]] = fieldB.view(Read)
 
     # a scalar site indexes one scalar rank-local site
     # "parallel" macro executes the loop in parallel on the host - threaded
@@ -34,22 +38,22 @@ quark: # wraps code in appropriate init/finalize
 
     # read field views close at scope exit without modifying their fields
 
-  var fieldsA: seq[Field[Complex]]
+  var fieldsA: seq[Field[Complex[D]]]
 
   for mu in lattice.directions:
     echo "created fields at mu = ", mu
-    fieldsA.add lattice.newScalarField()
+    fieldsA.add lattice.newScalarField(Complex[D])
 
     # accelerator loop
     within Accelerator:
-      var fieldsAMuView: FieldView[Complex] = fieldsA[mu].view(WriteDiscard)
-      var fieldAView: FieldView[Complex] = fieldA.view(Read)
+      var fieldsAMuView: FieldView[Complex[D]] = fieldsA[mu].view(WriteDiscard)
+      var fieldAView: FieldView[Complex[D]] = fieldA.view(Read)
       parallel for n in lattice.sites(Packed):
         fieldsAMuView[n] := fieldAView[n]
 
     # equally-valid host-side loop
     within Host:
-      var fieldsAMuView: FieldView[Complex] = fieldsA[mu].view(ReadWrite)
-      var fieldAView: FieldView[Complex] = fieldA.view(Read)
+      var fieldsAMuView: FieldView[Complex[D]] = fieldsA[mu].view(ReadWrite)
+      var fieldAView: FieldView[Complex[D]] = fieldA.view(Read)
       parallel for n in lattice.sites(Packed):
         fieldsAMuView[n] += fieldAView[n]

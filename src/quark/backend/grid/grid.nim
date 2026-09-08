@@ -1,7 +1,7 @@
 #[
-Quark
+Grid backend adapter
 
-src: quark.nim
+src: quark/backend/grid/grid.nim
 Author: Curtis Taylor Peterson <curtistaylorpetersonwork@gmail.com>
 
 MIT License
@@ -27,21 +27,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ]#
 
-import quark/base/[lattice]
-import quark/base/[execution]
-import quark/base/[iteration]
-import quark/base/[numeric]
-import quark/base/[tensor]
-import quark/base/[field]
-import quark/backend/[backend]
+import gridLattice
+import gridNumeric
 
-export lattice
-export iteration
-export execution
-export field
-export numeric
-export tensor
-export backend
-
-template quark*(body: untyped): untyped =
-  block: body
+export gridLattice
+export gridNumeric

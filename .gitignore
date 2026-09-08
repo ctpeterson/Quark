@@ -1,1 +1,17 @@
 scratch/
+
+# Everything bootstrap installs: backends, their dependencies, the Nim
+# toolchain, and the source trees they were built from.
+local/
+
+# Everything configure and make produce. These live in the build directory,
+# which is local/ by default and so already ignored; the patterns cover a
+# build directory placed inside the checkout under another name.
+bin/
+nimcache/
+Makefile
+Makefile.nims
+quark.conf
+
+# Python bytecode from the bootstrap scripts.
+**/__pycache__/

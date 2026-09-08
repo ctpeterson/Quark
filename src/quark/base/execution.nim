@@ -1,7 +1,7 @@
 #[
-Quark
+Execution space
 
-src: quark.nim
+src: quark/base/execution.nim
 Author: Curtis Taylor Peterson <curtistaylorpetersonwork@gmail.com>
 
 MIT License
@@ -27,21 +27,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ]#
 
-import quark/base/[lattice]
-import quark/base/[execution]
-import quark/base/[iteration]
-import quark/base/[numeric]
-import quark/base/[tensor]
-import quark/base/[field]
-import quark/backend/[backend]
+import std/[macros]
 
-export lattice
-export iteration
-export execution
-export field
-export numeric
-export tensor
-export backend
+type ExecutionSpace* = enum
+  Host = 0,       # CPU
+  Accelerator = 1 # GPU or other accelerator unit
 
-template quark*(body: untyped): untyped =
-  block: body
+macro within*(space: ExecutionSpace, body: untyped): untyped =
+  discard space
+  result = quote do:
+    block:
+      `body`
+
+when isMainModule:
+  import std/[unittest]
+
+  suite "smoke tests":
+    test "within macro with Host execution space":
+      var executed = false
+      within Host: executed = true
+      check executed
+
+    test "within macro with Accelerator execution space":
+      var executed = false
+      within Accelerator: executed = true
+      check executed

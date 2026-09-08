@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 
-Status: speculative. This note records design ideas for later investigation. It does not change Quark's domain vocabulary, accepted decisions, roadmap, or frozen Oracle A.
+Status: partially superseded. Oracle B and ADR 0003 settle the Decomposition Domain semantics discussed below; broader iteration-only Site Domains remain speculative and do not change frozen Oracle A.
 
 ## Current shape
 
@@ -22,28 +22,25 @@ Separating consecutive `within Accelerator` blocks is semantically reasonable ev
 
 The last paragraph is a proposed interpretation, not yet a complete asynchronous execution contract. Before Quark exposes nonblocking work, events, streams, or overlapping contexts, it must define when work completes and how a view lease remains alive until completion.
 
-## Possible missing axis: Site Domain
+## Remaining possible axis: Site Domain
 
-A future oracle may need to select a subset of a Lattice independently of both execution placement and site granularity. Possible examples include:
+A future oracle may need to select a subset of a Field Domain independently of both execution placement and site granularity. Possible examples include:
 
-- all rank-local sites;
-- even or odd checkerboard sites; and
 - interior or boundary sites for communication overlap.
 
-The tentative canonical term is **Site Domain**: the subset of a Lattice over which an iteration space ranges. One possible source shape is:
+The tentative canonical term is **Site Domain**: an iteration-only subset of a Field Domain. Unlike the immutable Decomposition Domain established by Oracle B, selecting a Site Domain does not reinterpret Field storage or change Field identity. One possible source shape is:
 
 ```nim
 within Accelerator:
-  parallel for n in lattice.sites(Packed, domain = Even):
+  parallel for n in field.domain.sites(Packed, subset = Interior):
     discard
 ```
 
 This is intentionally only a syntax sketch. It should not be added to Oracle A merely to reserve the interface. A new oracle should introduce it when a concrete operation requires it.
 
-Site Domain raises semantic questions that must be answered before acceptance:
+The remaining Site Domain questions must be answered before acceptance:
 
 - Is `All` implicit, or must every domain be named?
-- Are `Even` and `Odd` intrinsic Lattice domains, backend-defined domains, or values constructed from a Lattice?
 - Does a domain preserve stable Site Index provenance when it is composed or filtered?
 - Must every backend support every domain, or may an adapter reject unsupported domains explicitly?
 - Does `WriteDiscard` require complete assignment of the whole Field, or only of the Field View's declared domain? If the latter, the viewed region must become part of the lease contract.

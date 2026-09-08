@@ -1,8 +1,14 @@
 #[
-Quark
+Show configuration
 
-src: quark.nim
+src: quark/build/showConfig.nim
 Author: Curtis Taylor Peterson <curtistaylorpetersonwork@gmail.com>
+
+Reports the Quark build configuration the compiler resolved, which is the
+first thing to check when an installed Quark does not find a backend. Because
+the configuration is resolved at compile time, this program has to be
+recompiled to report a change; that is the point, since it then reports
+exactly what any other Quark build on this machine would see.
 
 MIT License
 
@@ -27,21 +33,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ]#
 
-import quark/base/[lattice]
-import quark/base/[execution]
-import quark/base/[iteration]
-import quark/base/[numeric]
-import quark/base/[tensor]
-import quark/base/[field]
-import quark/backend/[backend]
+import ./configuration
 
-export lattice
-export iteration
-export execution
-export field
-export numeric
-export tensor
-export backend
+# The report is built during compilation, because that is when the
+# configuration is resolved, and printed at run time. It is the same account
+# that '-d:quarkVerbose' prints while compiling any Quark program.
+const report = quarkReportLines()
 
-template quark*(body: untyped): untyped =
-  block: body
+when isMainModule:
+  for line in report:
+    echo line

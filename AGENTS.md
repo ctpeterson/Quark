@@ -12,6 +12,23 @@ Quark is a regular Nim project. Nim remains the authority for general syntax, ty
 
 Before changing Quark semantics or a backend adapter, read `CONTEXT.md`, the relevant ADRs under `docs/adr/`, the frozen oracles under `oracle/`, and the active milestone in `ROADMAP.md`.
 
+When changing the portable type interface or adapter conformance checks, also read `docs/notes/nim-concepts-at-the-portable-interface.md` for the current Nim-concepts experiment and its limits.
+
+Record notable user-visible changes under `CHANGELOG.md` → `Unreleased`. When preparing or tagging a release, read `docs/RELEASING.md`; `quark.nimble` is the authoritative version source.
+
+## Session efficiency
+
+Treat the repository as the durable memory between sessions. Begin resumed work by inspecting `git status`, the relevant diff, and the active milestone; continue from that state instead of reconstructing completed work from conversation history.
+
+- Use `rg` and targeted line ranges or symbols. Read a complete file when its whole content governs the task, but do not repeatedly reread unchanged files during the same task.
+- Keep command output bounded. Prefer quiet modes and focused failure excerpts; retain full logs in a temporary file when they may be needed rather than placing them all in conversation context.
+- Run the narrowest meaningful check while iterating. Run `nimble verify` when the coherent change is ready, and repeat broad checks only after relevant edits, a failure, or an unresolved concern.
+- Keep progress updates brief and report new findings or changed state rather than restating the plan or settled context.
+
+## Source documentation
+
+Every Nim file under `src/` begins with the non-documenting `#[ ... ]#` header used by `src/quark/base/lattice.nim`, including its path relative to `src/`. Reserve Nim's `##` documentation comments for settled public interfaces; describe their portable semantics and invariants without backend implementation details.
+
 ## Governing invariants
 
 1. **Frozen oracles drive design.** Once accepted, an oracle is immutable input to implementation work. Quark and its adapters move toward the oracle; the oracle does not move to make an implementation pass.
