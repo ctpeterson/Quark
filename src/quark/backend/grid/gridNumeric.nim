@@ -233,7 +233,10 @@ func re*[P: static Precision](value: Complex[P]): Real[P] =
 func im*[P: static Precision](value: Complex[P]): Real[P] =
   Real[P]()
 
-static: # conformance - practice should be carried over to final implementation
+when isMainModule:
+  import std/[unittest]
+
+static: # Adapter conformance is checked on every import.
   doAssert Integer[S] is IntegerNumber[S]
   doAssert Integer[D] is IntegerNumber[D]
   doAssert Real[S] is RealNumber[S]
@@ -250,6 +253,3 @@ static: # conformance - practice should be carried over to final implementation
   doAssert not (Real[S] is RealNumber[D])
   doAssert not (Complex[S] is ComplexNumber[D])
   doAssert typeof(newComplex(2.0, 4.0)) is Complex[D]
-
-when isMainModule: # always nice to have unit tests when main module
-  import std/[unittest]

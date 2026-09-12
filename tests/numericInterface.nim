@@ -2,6 +2,8 @@ import std/unittest
 
 import quark
 
+include support/siteIndices
+
 type
   TestStoredReal[P: static Precision] = object
   TestRealExpression[P: static Precision] = object
@@ -115,14 +117,17 @@ suite "portable numeric interface":
   test "complex projections preserve precision":
     let single = newComplex(1.0'f32, 2.0'f32)
     let double = newComplex(1.0, 2.0)
-    var scalarSite: FieldSite[Complex[D], ScalarSite]
 
     check single.re is Real[S]
     check single.im is Real[S]
     check double.re is Real[D]
     check double.im is Real[D]
-    check scalarSite.re is FieldSite[Real[D], ScalarSite]
-    check scalarSite.im is FieldSite[Real[D], ScalarSite]
+    within Host:
+      let field = newLattice([8, 8]).newField(Complex[D])
+      let view = field.view(Read)
+      let scalarSite = view[firstScalar(field.lattice)]
+      check scalarSite.re is RealNumber[D]
+      check scalarSite.im is RealNumber[D]
 
   test "same-Kind arithmetic is semantically closed":
     let integerSingle = newInteger(2'i32)

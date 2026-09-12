@@ -29,6 +29,8 @@ SOFTWARE.
 
 import gridLattice
 import gridNumeric
+import gridField
 
 export gridLattice
 export gridNumeric
+export gridField

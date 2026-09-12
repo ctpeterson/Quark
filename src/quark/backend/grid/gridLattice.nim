@@ -34,7 +34,7 @@ SOFTWARE.
 import quark/base/[lattice]
 
 type
-  GridGeometry {.requiresInit.} = object
+  GridGeometry {.requiresInit.} = ref object
     extentsData: seq[int]
     volumeData: int
 
@@ -42,13 +42,13 @@ type
     factorsData: seq[int]
     partitionsData: int
 
-  GridLayout {.requiresInit.} = object
+  GridLayout {.requiresInit.} = ref object
     rankPartitionData: GridPartition
     rankGeometryData: GridGeometry
     packedPartitionData: GridPartition
     packedGeometryData: GridGeometry
 
-  GridLattice {.requiresInit.} = object
+  GridLattice[K: static Domain] {.requiresInit.} = object
     geometryData: GridGeometry
     layoutData: GridLayout
 
@@ -166,11 +166,11 @@ proc newLattice*(
   latticeGeometry: GridGeometry;
   rankPartition: GridPartition;
   packedPartition: GridPartition
-): GridLattice =
+): GridLattice[Full] =
   let rankGeometry = latticeGeometry / rankPartition
   let packedGeometry = rankGeometry / packedPartition
 
-  GridLattice(
+  GridLattice[Full](
     geometryData: latticeGeometry,
     layoutData: GridLayout(
       rankPartitionData: rankPartition,
@@ -184,7 +184,7 @@ proc newLattice*(
   latticeExtents: openArray[int];
   rankPartition: openArray[int] = [];
   packedPartition: openArray[int] = []
-): GridLattice =
+): GridLattice[Full] =
   let latticeGeometry = newGeometry(latticeExtents)
   let resolvedRankPartition = if rankPartition.len == 0:
     inferRankPartition(latticeGeometry)
@@ -202,33 +202,43 @@ proc newLattice*(
     resolvedPackedPartition
   )
 
-func geometry*(lattice: GridLattice): GridGeometry =
+func geometry*[K](lattice: GridLattice[K]): GridGeometry =
   lattice.geometryData
 
-func dimensions*(lattice: GridLattice): int =
+func dimensions*[K](lattice: GridLattice[K]): int =
   lattice.geometry.len
 
-func rankPartition*(lattice: GridLattice): GridPartition =
+func rankPartition*[K](lattice: GridLattice[K]): GridPartition =
   lattice.layoutData.rankPartitionData
 
-func rankGeometry*(lattice: GridLattice): GridGeometry =
+func rankGeometry*[K](lattice: GridLattice[K]): GridGeometry =
   lattice.layoutData.rankGeometryData
 
-func packedPartition*(lattice: GridLattice): GridPartition =
+func packedPartition*[K](lattice: GridLattice[K]): GridPartition =
   lattice.layoutData.packedPartitionData
 
-func packedGeometry*(lattice: GridLattice): GridGeometry =
+func packedGeometry*[K](lattice: GridLattice[K]): GridGeometry =
   lattice.layoutData.packedGeometryData
 
-static: # conformance - practice should be carried over to final implementation
-  doAssert GridGeometry is Geometry
-  doAssert GridPartition is Partition
-  doAssert typeof(newLattice([8, 8, 8, 16])) is Lattice
-  doAssert typeof(newLattice(
-    [8, 8, 8, 16],
-    [2, 1, 1, 2],
-    [1, 2, 2, 1]
-  )) is Lattice
+template domain*[K](lattice: GridLattice[K]): Domain = K
+
+func conformable*[KA, KB: static Domain](
+  a: GridLattice[KA]; b: GridLattice[KB]
+): bool =
+  ## Whether both Lattices have the same kind and share Geometry and Layout.
+  when KA != KB:
+    false
+  else:
+    system.`==`(a.geometryData, b.geometryData) and
+      system.`==`(a.layoutData, b.layoutData)
+
+func newSublattice*(
+  lattice: GridLattice[Full]; selection: static Domain = Full
+): GridLattice[selection] =
+  when selection == Full:
+    lattice
+  else:
+    raise newException(ValueError, "Grid parity Lattice derivation is not implemented")
 
 when isMainModule:
   import std/[unittest]
@@ -295,3 +305,28 @@ when isMainModule:
         discard newLattice([8, 8], [3, 1], [1, 1])
       expect ValueError:
         discard newLattice([8, 8], [2, 1], [3, 1])
+
+static: # Adapter conformance is checked on every import.
+  doAssert GridGeometry is Geometry
+  doAssert GridPartition is Partition
+  template assertFullConstruction(expression: untyped) =
+    doAssert typeof(expression) is Lattice
+    doAssert expression.domain == Full
+
+  assertFullConstruction(newLattice([8, 8, 8, 16]))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16],
+    rankPartition = [2, 1, 1, 2],
+    packedPartition = [1, 2, 2, 1]
+  ))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16], rankPartition = [2, 1, 1, 2]
+  ))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16], packedPartition = [1, 2, 2, 1]
+  ))
+  assertFullConstruction(newLattice(
+    newGeometry([8, 8, 8, 16]),
+    newPartition([2, 1, 1, 2]),
+    newPartition([1, 2, 2, 1])
+  ))

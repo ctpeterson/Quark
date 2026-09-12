@@ -35,7 +35,7 @@ import quark/base/[lattice]
 
 
 type
-  QexGeometry {.requiresInit.} = object
+  QexGeometry {.requiresInit.} = ref object
     extentsData: seq[int]
     volumeData: int
 
@@ -43,13 +43,13 @@ type
     factorsData: seq[int]
     partitionsData: int
 
-  QexLayout {.requiresInit.} = object
+  QexLayout {.requiresInit.} = ref object
     rankPartitionData: QexPartition
     rankGeometryData: QexGeometry
     packedPartitionData: QexPartition
     packedGeometryData: QexGeometry
 
-  QexLattice {.requiresInit.} = object
+  QexLattice[K: static Domain] {.requiresInit.} = object
     geometryData: QexGeometry
     layoutData: QexLayout
 
@@ -167,11 +167,11 @@ proc newLattice*(
   latticeGeometry: QexGeometry;
   rankPartition: QexPartition;
   packedPartition: QexPartition
-): QexLattice =
+): QexLattice[Full] =
   let rankGeometry = latticeGeometry / rankPartition
   let packedGeometry = rankGeometry / packedPartition
 
-  QexLattice(
+  QexLattice[Full](
     geometryData: latticeGeometry,
     layoutData: QexLayout(
       rankPartitionData: rankPartition,
@@ -185,7 +185,7 @@ proc newLattice*(
   latticeExtents: openArray[int];
   rankPartition: openArray[int] = [];
   packedPartition: openArray[int] = []
-): QexLattice =
+): QexLattice[Full] =
   let latticeGeometry = newGeometry(latticeExtents)
   let resolvedRankPartition = if rankPartition.len == 0:
     inferRankPartition(latticeGeometry)
@@ -203,33 +203,43 @@ proc newLattice*(
     resolvedPackedPartition
   )
 
-func geometry*(lattice: QexLattice): QexGeometry =
+func geometry*[K](lattice: QexLattice[K]): QexGeometry =
   lattice.geometryData
 
-func dimensions*(lattice: QexLattice): int =
+func dimensions*[K](lattice: QexLattice[K]): int =
   lattice.geometry.len
 
-func rankPartition*(lattice: QexLattice): QexPartition =
+func rankPartition*[K](lattice: QexLattice[K]): QexPartition =
   lattice.layoutData.rankPartitionData
 
-func rankGeometry*(lattice: QexLattice): QexGeometry =
+func rankGeometry*[K](lattice: QexLattice[K]): QexGeometry =
   lattice.layoutData.rankGeometryData
 
-func packedPartition*(lattice: QexLattice): QexPartition =
+func packedPartition*[K](lattice: QexLattice[K]): QexPartition =
   lattice.layoutData.packedPartitionData
 
-func packedGeometry*(lattice: QexLattice): QexGeometry =
+func packedGeometry*[K](lattice: QexLattice[K]): QexGeometry =
   lattice.layoutData.packedGeometryData
 
-static: # conformance - practice should be carried over to final implementation
-  doAssert QexGeometry is Geometry
-  doAssert QexPartition is Partition
-  doAssert typeof(newLattice([8, 8, 8, 16])) is Lattice
-  doAssert typeof(newLattice(
-    [8, 8, 8, 16],
-    [2, 1, 1, 2],
-    [1, 2, 2, 1]
-  )) is Lattice
+template domain*[K](lattice: QexLattice[K]): Domain = K
+
+func conformable*[KA, KB: static Domain](
+  a: QexLattice[KA]; b: QexLattice[KB]
+): bool =
+  ## Whether both Lattices have the same kind and share Geometry and Layout.
+  when KA != KB:
+    false
+  else:
+    system.`==`(a.geometryData, b.geometryData) and
+      system.`==`(a.layoutData, b.layoutData)
+
+func newSublattice*(
+  lattice: QexLattice[Full]; selection: static Domain = Full
+): QexLattice[selection] =
+  when selection == Full:
+    lattice
+  else:
+    raise newException(ValueError, "QEX parity Lattice derivation is not implemented")
 
 when isMainModule:
   import std/[unittest]
@@ -296,3 +306,28 @@ when isMainModule:
         discard newLattice([8, 8], [3, 1], [1, 1])
       expect ValueError:
         discard newLattice([8, 8], [2, 1], [3, 1])
+
+static: # Adapter conformance is checked on every import.
+  doAssert QexGeometry is Geometry
+  doAssert QexPartition is Partition
+  template assertFullConstruction(expression: untyped) =
+    doAssert typeof(expression) is Lattice
+    doAssert expression.domain == Full
+
+  assertFullConstruction(newLattice([8, 8, 8, 16]))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16],
+    rankPartition = [2, 1, 1, 2],
+    packedPartition = [1, 2, 2, 1]
+  ))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16], rankPartition = [2, 1, 1, 2]
+  ))
+  assertFullConstruction(newLattice(
+    [8, 8, 8, 16], packedPartition = [1, 2, 2, 1]
+  ))
+  assertFullConstruction(newLattice(
+    newGeometry([8, 8, 8, 16]),
+    newPartition([2, 1, 1, 2]),
+    newPartition([1, 2, 2, 1])
+  ))

@@ -24,6 +24,8 @@ suite "portable lattice interface":
       rankPartition,
       packedPartition
     )
+    static:
+      doAssert lattice.domain == Full
 
     check lattice.dimensions == 4
     check lattice.volume == 8192
@@ -50,6 +52,8 @@ suite "portable lattice interface":
 
   test "the constructor delegates omitted partitions to the backend":
     let lattice: Lattice = newLattice([8, 8, 8, 16])
+    static:
+      doAssert lattice.domain == Full
 
     check lattice.rankPartition.partitions == 1
     check lattice.rankGeometry == lattice.geometry
@@ -60,6 +64,8 @@ suite "portable lattice interface":
       [8, 8, 8, 16],
       rankPartition = [2, 1, 1, 2]
     )
+    static:
+      doAssert rankSpecified.domain == Full
     check rankSpecified.rankPartition[0] == 2
     check rankSpecified.rankGeometry == newGeometry([4, 8, 8, 8])
     check rankSpecified.packedPartition.partitions == 1
@@ -69,10 +75,22 @@ suite "portable lattice interface":
       [8, 8, 8, 16],
       packedPartition = [1, 2, 2, 1]
     )
+    static:
+      doAssert packedSpecified.domain == Full
     check packedSpecified.rankPartition.partitions == 1
     check packedSpecified.rankGeometry == packedSpecified.geometry
     check packedSpecified.packedPartition[1] == 2
     check packedSpecified.packedGeometry == newGeometry([8, 4, 4, 16])
+
+    let bothSpecified: Lattice = newLattice(
+      [8, 8, 8, 16],
+      rankPartition = [2, 1, 1, 2],
+      packedPartition = [1, 2, 2, 1]
+    )
+    static:
+      doAssert bothSpecified.domain == Full
+    check bothSpecified.rankGeometry == newGeometry([4, 8, 8, 8])
+    check bothSpecified.packedGeometry == newGeometry([4, 4, 4, 8])
 
   test "unsupported geometry and regular partitions reject explicitly":
     expect ValueError:

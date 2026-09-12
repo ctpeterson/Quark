@@ -37,11 +37,14 @@ import quark/backend/[backend]
 
 export lattice
 export iteration
-export execution
+export execution except ViewLease, ExecutionScope, ViewOwner, close,
+  newExecutionScope, requireOpen, openView
 export field
 export numeric
 export tensor
 export backend
 
 template quark*(body: untyped): untyped =
-  block: body
+  block:
+    defer: discard
+    body

@@ -29,6 +29,8 @@ SOFTWARE.
 
 import qexLattice
 import qexNumeric
+import qexField
 
 export qexLattice
 export qexNumeric
+export qexField
