@@ -35,8 +35,10 @@ The three backends are:
 | `qex` | Builds QMP and QIO, checks out QEX, runs QEX's own `configure` |
 | `quda` | Builds QUDA with CMake for a CUDA, HIP, or SYCL target |
 
-Backend names are the ones `src/quark/backend/backend.nim` accepts, so the
-name given to `--backend` is the name later given to `-d:backend=...`.
+QEX and Grid may be selected with `-d:backend=...`. QUDA can be bootstrapped
+as a dependency of QEX; selecting it as a Quark adapter rejects until a
+conforming adapter exists. Selectors accept case variations and the
+`quantum-expressions` / `quantum_expressions` aliases for QEX.
 
 ### Several backends at once
 
@@ -145,22 +147,27 @@ into one file:
 
 ```
 # Quark build configuration
-default.backend = grid
-nim = /home/me/quark/local/nim/bin/nim
+format = 2
+default.backend = "grid"
+nim = "/home/me/quark/local/nim/bin/nim"
 
 [grid]
-prefix   = /home/me/quark/local/grid
-language = cpp
-passC    = -I/home/me/quark/local/grid/include -fno-strict-aliasing
-passL    = -L/home/me/quark/local/grid/lib -Wl,-rpath,/home/me/quark/local/grid/lib -lGrid
-nimFlags = --path:...
+prefix   = "/home/me/quark/local/grid"
+language = "cpp"
+passC    = "-I/home/me/quark/local/grid/include -fno-strict-aliasing"
+passL    = "-L/home/me/quark/local/grid/lib -Wl,-rpath,/home/me/quark/local/grid/lib -lGrid"
 ```
 
 Keys before any section are global; a section per backend carries its
-settings. `passC` and `passL` travel with Quark's source as pragmas, so they
-reach any project that imports Quark. `nimFlags` are the settings Nim only
+settings. Format 2 encodes values as JSON strings to preserve whitespace
+and escaping; legacy unquoted configurations remain readable.
+`passC` and `passL` travel with Quark's source as pragmas, so they
+reach any project that imports Quark. Repeated `nimFlag` entries are settings Nim only
 accepts on its command line — search paths, defines, environment variables —
-so they are applied by the generated `Makefile` instead.
+so they are applied by the generated `Makefile` and `quark.nims`.
+Both bind explicitly to the configuration that produced them, including
+custom `--build-dir` and `--output` paths. Missing explicit configurations
+reject instead of falling back to checkout or user discovery.
 
 Configure writes that file, a `Makefile`, and the build script behind it into
 the **build directory**, and everything a build produces lands there too. The

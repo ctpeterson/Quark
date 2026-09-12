@@ -1,0 +1,38 @@
+{
+  "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz": {
+    "sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+  },
+  "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.1.tar.xz": {
+    "sha256": "277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2"
+  },
+  "https://www.fftw.org/fftw-3.3.10.tar.gz": {
+    "sha256": "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467"
+  },
+  "https://github.com/openssl/openssl/releases/download/openssl-3.2.1/openssl-3.2.1.tar.gz": {
+    "sha256": "83c7329fe52c850677d75e5d0b0ca245309b97e8ecbcfdc1dfdc4ab9fac35b39"
+  },
+  "https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5_1.14.6.tar.gz": {
+    "sha256": "09ee1c671a87401a5201c06106650f62badeea5a3b3941e9b1e2e1e08317357f"
+  },
+  "https://github.com/libunwind/libunwind/releases/download/v1.8.1/libunwind-1.8.1.tar.gz": {
+    "sha256": "ddf0e32dd5fafe5283198d37e4bf9decf7ba1770b6e7e006c33e6df79e6a6157"
+  },
+  "https://usqcd-software.github.io/downloads/qmp/qmp-2.5.4.tar.gz": {
+    "sha256": "b899127f8c26efba3ed14e69785b057fb331d979545e7aa490860fcede7f8935"
+  },
+  "https://usqcd-software.github.io/downloads/qio/qio-3.0.0.tar.gz": {
+    "sha256": "aaf3a98f5d2db2d1e3927a8869622c67387d081be57937f528255ed61b3b6644"
+  },
+  "https://nim-lang.org/download/nim-2.2.8-linux_x64.tar.xz": {
+    "sha256": "eed763d0f8ed849781198fe18730638eb520e5ada81d8bc916f8d3c1b256dd6e"
+  },
+  "https://nim-lang.org/download/nim-2.2.8-linux_arm64.tar.xz": {
+    "sha256": "19d8f79b054d40f41bb125ee5dd7867b446e7ea386d96a703d835159e3237301"
+  },
+  "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz": {
+    "sha256": "54ec30358afcc9fb8aa74307db3046f5187f9fb89fb37064cdde906e062ebf36"
+  },
+  "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-aarch64-linux-gnu.tar.xz": {
+    "sha256": "dcaa1bebbfbb86953fdfbdc7f938800229f75ad26c5c9375ef242edad737d999"
+  }
+}

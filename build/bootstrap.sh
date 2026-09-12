@@ -58,15 +58,17 @@ QUARK_ROOT="$(dirname "$BUILD_DIR")"
 # Canonical names, and the script that bootstraps each one. These must stay in
 # step with the selector strings in src/quark/backend/backend.nim.
 canonical_backend() {
-    case "$1" in
-        qex|Qex|QEX|\
-        "quantum expressions"|"Quantum Expressions"|"Quantum EXpressions"|\
-        quantum-expressions|Quantum-Expressions|Quantum-EXpressions|\
-        quantum_expressions|Quantum_Expressions|Quantum_EXpressions)
+    local name="${1,,}"
+    name="${name//_/ }"
+    name="${name//-/ }"
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    case "$name" in
+        qex|"quantum expressions")
             echo "qex" ;;
-        grid|Grid|GRID)
+        grid)
             echo "grid" ;;
-        quda|Quda|QUDA)
+        quda)
             echo "quda" ;;
         *)
             echo "" ;;

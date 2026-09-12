@@ -57,12 +57,9 @@ elif selectedBackend == "grid":
     import grid/[grid]
     export grid
 elif selectedBackend == "quda":
-    quarkBackendFlags("quda")
-    import quda/[quda]
-    export quda
+    {.error: "unsupported backend 'quda': no conforming Quark adapter exists; QUDA may only be bootstrapped as a dependency.".}
 elif backend.len == 0:
-    {.error: "no backend selected. Compile with -d:backend=grid, -d:backend=qex," &
-             " or -d:backend=quda, or run ./configure to set a default.".}
+    {.error: "no backend selected. Compile with -d:backend=grid or -d:backend=qex, or run ./configure to set a default.".}
 else:
     {.error: "unsupported backend '" & backend & "'." &
-             " Supported backends are grid, qex, and quda.".}
+             " Supported backends are grid and qex.".}

@@ -73,6 +73,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from build.artifacts import IntegrityError, archive_spec, toolchain_archive, verify_archive
+
 NJOBS = str(multiprocessing.cpu_count())
 
 # Repository root, derived from this file's location rather than the working
@@ -110,26 +112,57 @@ def which(name: str) -> str | None:
 
 
 def download(url: str, dest: Path) -> None:
-    """Download a URL to dest, verifying we didn't get an HTML error page."""
-    run(["curl", "-fL", "-o", str(dest), url])
-    # Sanity-check: if the server gave us HTML instead of a tarball, abort early
-    # rather than letting tar fail with a confusing message.
-    with open(dest, "rb") as f:
-        header = f.read(256)
-    if b"<html" in header.lower() or b"<!doctype" in header.lower():
-        dest.unlink()
-        raise RuntimeError(
-            f"Download of {url} returned an HTML page, not an archive.\n"
-            f"The URL may have changed. Please check it manually."
-        )
+    """Download atomically and verify both cached and fresh archives."""
+    spec = archive_spec(url)
+    if dest.exists():
+        verify_archive(dest, spec["sha256"])
+        return
+    partial = dest.with_name(dest.name + ".partial")
+    run(["curl", "-fL", "--retry", "3", "-o", str(partial), url])
+    verify_archive(partial, spec["sha256"])
+    partial.replace(dest)
 
 
 def host_arch() -> str:
     """Return the host machine as one of 'x64' or 'arm64'."""
+    if platform.system() != "Linux":
+        raise RuntimeError("Prebuilt toolchains support Linux only; use --skip-nim --no-llvm")
     machine = platform.machine().lower()
     if machine in ("x86_64", "amd64"): return "x64"
     if machine in ("aarch64", "arm64"): return "arm64"
     raise RuntimeError(f"Unsupported architecture: {machine}")
+
+
+def source_identity(source: Path) -> dict:
+    """Record the exact checkout, including local patches and submodules."""
+    return {
+        "commit": capture(["git", "rev-parse", "HEAD"], cwd=source),
+        "remote": capture(["git", "remote", "get-url", "origin"], cwd=source),
+        "patch": subprocess.check_output(
+            ["git", "diff", "--binary", "HEAD"], cwd=source, text=True),
+        "submodules": capture(["git", "submodule", "status", "--recursive"], cwd=source),
+        "untracked": capture(["git", "ls-files", "--others", "--exclude-standard"], cwd=source),
+    }
+
+
+def clone_repository(source: Path, repo: str, revision: str, *, update=False) -> Path:
+    """Resolve a branch, tag, or commit to an explicit checkout."""
+    if not source.exists():
+        run(["git", "clone", "--no-checkout", repo, str(source)])
+        run(["git", "fetch", "origin", revision], cwd=source)
+        run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=source)
+    elif update:
+        run(["git", "fetch", "origin", revision], cwd=source)
+        run(["git", "merge", "--ff-only", "FETCH_HEAD"], cwd=source)
+    print(f"Resolved {source.name}: {capture(['git', 'rev-parse', 'HEAD'], cwd=source)}")
+    return source
+
+
+def record_resolution(layout, key: str, value: dict) -> None:
+    path = layout.root / "resolutions.json"
+    data = json.loads(path.read_text()) if path.exists() else {}
+    data.setdefault(layout.backend, {})[key] = value
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -242,7 +275,7 @@ def ensure_spack(layout: Layout) -> None:
 
     print("\nInstalling a local Spack clone …")
     ensure_dir(layout.src)
-    run("git clone --depth=1 https://github.com/spack/spack.git", cwd=layout.src)
+    clone_repository(layout.src / "spack", "https://github.com/spack/spack.git", "HEAD")
     if not spack_bin.exists():
         raise RuntimeError(f"Spack clone succeeded but {spack_bin} does not exist.")
     print(f"Local Spack installed: {spack_bin}")
@@ -270,6 +303,11 @@ def spack_link_into(spec: str, layout: Layout, *, jobs: str = NJOBS) -> Path:
     always look in ``PREFIX/lib/``) work correctly.
     """
     pfx = spack_install(spec, layout, jobs=jobs)
+    record_resolution(layout, "spack:" + spec, {
+        "requested": spec, "prefix": str(pfx),
+        "concrete": json.loads(capture(
+            [str(_local_spack_bin(layout)), "find", "--json", spec])),
+    })
 
     # Map Spack sub-directories to their destination under deps.
     # Crucially, lib64/ is merged into lib/ so a backend can find everything.
@@ -321,14 +359,18 @@ def build_or_spack(
     if use_spack:
         print(f"\n--use-spack: installing {lib_name} via Spack ({spec})")
         spack_link_into(spec, layout, jobs=jobs)
+        record_resolution(layout, lib_name, {"provider": "spack", "reason": "--use-spack"})
         return
 
     try: build_fn(*build_args)
+    except IntegrityError:
+        raise
     except (subprocess.CalledProcessError, RuntimeError) as exc:
         warn(f"Source build of {lib_name} failed: {exc}\n"
              f"Falling back to Spack ({spec}) …")
         ensure_spack(layout)
         spack_link_into(spec, layout, jobs=jobs)
+        record_resolution(layout, lib_name, {"provider": "spack", "reason": str(exc)})
 
 
 def lib_installed(prefix: Path, libname: str) -> bool:
@@ -354,32 +396,25 @@ LLVM_VERSION = "18.1.8"
 def _find_system_compiler() -> tuple[str, str]:
     """Return the best available system C/C++ compiler as (cc, cxx)."""
     if which("gcc") and which("g++"): return "gcc", "g++"
-    if which("cc") and which("c++"): return "gcc", "g++"  # 'cc' is almost always gcc on Linux
-    return "gcc", "g++"  # hopeful default
+    if which("cc") and which("c++"): return "cc", "c++"
+    raise RuntimeError("No system C/C++ compiler pair found")
 
 
 def _install_prebuilt_llvm(layout: Layout) -> Path:
     """Download a prebuilt LLVM/Clang release.  Returns the prefix containing bin/clang."""
-    arch = {"x64": "X64", "arm64": "ARM64"}[host_arch()]
+    url = toolchain_archive("llvm", LLVM_VERSION, host_arch())
     src = layout.source("llvm")
 
-    # Already extracted from a previous run?
-    for d in src.iterdir():
-        if d.is_dir() and (d / "bin" / "clang").exists(): return d
-
-    tarball_name = f"LLVM-{LLVM_VERSION}-Linux-{arch}.tar.xz"
-    url = (f"https://github.com/llvm/llvm-project/releases/"
-           f"download/llvmorg-{LLVM_VERSION}/{tarball_name}")
+    tarball_name = url.rsplit("/", 1)[1]
     tarball = src / tarball_name
-
-    if not tarball.exists(): download(url, tarball)
+    download(url, tarball)
+    extracted = src / tarball_name.removesuffix(".tar.xz")
+    if (extracted / "bin" / "clang").exists():
+        return extracted
     run(f"tar xf {tarball_name}", cwd=src)
-
-    # Scan for the extracted directory (name may vary across releases)
-    for d in src.iterdir():
-        if d.is_dir() and (d / "bin" / "clang").exists(): return d
-
-    raise RuntimeError("Extracted LLVM tarball but could not find bin/clang in any subdirectory.")
+    if (extracted / "bin" / "clang").exists():
+        return extracted
+    raise RuntimeError(f"Extracted LLVM tarball but {extracted}/bin/clang is missing.")
 
 
 def _prepend_to_path(bindir: Path) -> None:
@@ -398,13 +433,18 @@ def _set_compiler_env(
     so that a backend's configure step picks up the same compiler."""
     os.environ["CC"] = cc
     os.environ["CXX"] = cxx
+    record_resolution(layout, "compiler", {
+        "cc": which(cc) or cc, "cxx": which(cxx) or cxx,
+        "ccVersion": capture([cc, "--version"]),
+        "cxxVersion": capture([cxx, "--version"]),
+    })
 
     env_file = layout.root / "compiler.env"
     with open(env_file, "w") as f:
         f.write("# Auto-generated by Quark bootstrap — do not edit\n")
-        if extra_path: f.write(f'export PATH="{extra_path}:${{PATH}}"\n')
-        f.write(f'export CC="{cc}"\n')
-        f.write(f'export CXX="{cxx}"\n')
+        if extra_path: f.write(f'export PATH={shlex.quote(extra_path)}:"${{PATH}}"\n')
+        f.write(f'export CC={shlex.quote(cc)}\n')
+        f.write(f'export CXX={shlex.quote(cxx)}\n')
     print(f"Wrote {env_file}")
 
 
@@ -444,14 +484,20 @@ def ensure_compiler(
         _set_compiler_env("clang", "clang++", layout,
                           extra_path=str(llvm_prefix / "bin"))
         return "clang", "clang++"
+    except IntegrityError:
+        raise
     except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
         print(f"Prebuilt LLVM install failed: {exc}")
+        record_resolution(layout, "llvmFallback", {"reason": str(exc)})
 
     # 3. Spack
     try:
         print("\nTrying to install LLVM via Spack …")
         ensure_spack(layout)
         llvm_prefix = spack_install("llvm", layout, jobs=jobs)
+        record_resolution(layout, "spack:llvm", {
+            "concrete": json.loads(capture([str(_local_spack_bin(layout)), "find", "--json", "llvm"])),
+        })
         if (llvm_prefix / "bin" / "clang").exists():
             _prepend_to_path(llvm_prefix / "bin")
             print(f"Spack LLVM ready: {llvm_prefix}")
@@ -460,6 +506,7 @@ def ensure_compiler(
             return "clang", "clang++"
     except (subprocess.CalledProcessError, RuntimeError) as exc:
         print(f"Spack LLVM install failed: {exc}")
+        record_resolution(layout, "compilerFallback", {"reason": str(exc)})
 
     # 4. Fallback to system defaults
     cc, cxx = _find_system_compiler()
@@ -488,10 +535,10 @@ def install_nim(layout: Layout, *, version: str = NIM_VERSION) -> Path:
         print(f"Nim already installed: {nim_bin}")
         return nim_bin
 
-    tarball = f"nim-{version}-linux_{host_arch()}.tar.xz"
-    url = f"https://nim-lang.org/download/{tarball}"
+    url = toolchain_archive("nim", version, host_arch())
+    tarball = url.rsplit("/", 1)[1]
     src = layout.source("nim")
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
 
     nim_dir = src / f"nim-{version}"
@@ -554,6 +601,33 @@ def write_manifest(layout: Layout, backend: str, entry: dict,
     data["prefix"] = str(layout.root)
     if nim is not None:
         data["nim"] = str(nim)
+    entry = dict(entry)
+    if entry.get("source"):
+        identity = source_identity(Path(entry["source"]))
+        entry["commit"] = identity["commit"]
+        entry["sourceIdentity"] = identity
+    sources = {}
+    if layout.src.exists():
+        for directory in sorted(layout.src.iterdir()):
+            if not directory.is_dir():
+                continue
+            candidates = [directory] + [p for p in directory.iterdir() if p.is_dir()]
+            for candidate in candidates:
+                if (candidate / ".git").exists():
+                    sources[str(candidate.relative_to(layout.src))] = source_identity(candidate)
+    entry["sources"] = sources
+    archives = {}
+    specs = json.loads(Path(__file__).with_name("archives.json").read_text())
+    for url, spec in specs.items():
+        for archive in layout.src.glob("*/" + url.rsplit("/", 1)[1]):
+            verify_archive(archive, spec["sha256"])
+            archives[url] = spec
+    entry["archives"] = archives
+    resolutions = layout.root / "resolutions.json"
+    if resolutions.exists():
+        entry["resolutions"] = json.loads(resolutions.read_text()).get(backend, {})
+    if nim is not None:
+        entry["nimVersion"] = capture([str(nim), "--version"])
     data["backends"][backend] = entry
 
     layout.manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")

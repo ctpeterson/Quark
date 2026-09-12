@@ -57,6 +57,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from build.common import (  # noqa: E402
+    clone_repository,
     Layout, StageTracker, add_common_arguments, build_or_spack, download,
     ensure_compiler, ensure_dir, ensure_spack, lib_installed, resolve_nim,
     run, warn, write_manifest,
@@ -75,11 +76,11 @@ def build_gmp(layout: Layout, jobs: str) -> None:
         return
     src = layout.source("gmp")
     tarball = "gmp-6.3.0.tar.xz"
-    url = f"https://gmplib.org/download/gmp/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    url = f"https://ftp.gnu.org/gnu/gmp/{tarball}"
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / "gmp-6.3.0"
-    run(f"./configure --prefix={layout.deps} --enable-cxx", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}", "--enable-cxx"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
 
@@ -91,10 +92,10 @@ def build_mpfr(layout: Layout, gmp_prefix: Path, jobs: str) -> None:
     src = layout.source("mpfr")
     tarball = "mpfr-4.2.1.tar.xz"
     url = f"https://ftp.gnu.org/gnu/mpfr/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / "mpfr-4.2.1"
-    run(f"./configure --prefix={layout.deps} --with-gmp={gmp_prefix}", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}", f"--with-gmp={gmp_prefix}"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
 
@@ -106,18 +107,18 @@ def build_fftw(layout: Layout, jobs: str) -> None:
     src = layout.source("fftw")
     tarball = "fftw-3.3.10.tar.gz"
     url = f"https://www.fftw.org/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / "fftw-3.3.10"
 
     # Double precision
-    run(f"./configure --prefix={layout.deps}", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
     run("make clean", cwd=build_dir)
 
     # Single precision (Grid needs both)
-    run(f"./configure --prefix={layout.deps} --enable-float", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}", "--enable-float"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
 
@@ -129,10 +130,10 @@ def build_openssl(layout: Layout, jobs: str) -> None:
     src = layout.source("openssl")
     tarball = "openssl-3.2.1.tar.gz"
     url = f"https://github.com/openssl/openssl/releases/download/openssl-3.2.1/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / "openssl-3.2.1"
-    run(f"./config --prefix={layout.deps} --openssldir={layout.deps / 'ssl'}", cwd=build_dir)
+    run(["./config", f"--prefix={layout.deps}", f"--openssldir={layout.deps / 'ssl'}"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install_sw", cwd=build_dir)
 
@@ -145,11 +146,11 @@ def build_hdf5(layout: Layout, jobs: str) -> None:
     tag = "hdf5_1.14.6"
     tarball = f"{tag}.tar.gz"
     url = f"https://github.com/HDFGroup/hdf5/archive/refs/tags/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / f"hdf5-{tag}"
-    run(f"./configure --prefix={layout.deps} --enable-cxx "
-        f"--enable-build-mode=production", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}", "--enable-cxx",
+         "--enable-build-mode=production"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
 
@@ -160,10 +161,9 @@ def build_lime(layout: Layout, jobs: str) -> None:
         return
     src = layout.source("lime")
     clone_dir = src / "c-lime"
-    if not clone_dir.exists():
-        run("git clone https://github.com/usqcd-software/c-lime.git", cwd=src)
+    clone_repository(clone_dir, "https://github.com/usqcd-software/c-lime.git", "HEAD")
     run("./autogen.sh", cwd=clone_dir)
-    run(f"./configure --prefix={layout.deps}", cwd=clone_dir)
+    run(["./configure", f"--prefix={layout.deps}"], cwd=clone_dir)
     run(f"make -j{jobs}", cwd=clone_dir)
     run("make install", cwd=clone_dir)
 
@@ -175,10 +175,10 @@ def build_libunwind(layout: Layout, jobs: str) -> None:
     src = layout.source("libunwind")
     tarball = "libunwind-1.8.1.tar.gz"
     url = f"https://github.com/libunwind/libunwind/releases/download/v1.8.1/{tarball}"
-    if not (src / tarball).exists(): download(url, src / tarball)
+    download(url, src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / "libunwind-1.8.1"
-    run(f"./configure --prefix={layout.deps}", cwd=build_dir)
+    run(["./configure", f"--prefix={layout.deps}"], cwd=build_dir)
     run(f"make -j{jobs}", cwd=build_dir)
     run("make install", cwd=build_dir)
 
@@ -333,10 +333,7 @@ def build_grid(args: argparse.Namespace, layout: Layout) -> Path:
     grid_build = layout.src / "grid-build"
     grid_install = layout.prefix
 
-    if not grid_src.exists():
-        run(f"git clone --branch {args.grid_branch} {args.grid_repo} {grid_src}")
-    elif args.grid_pull:
-        run("git pull", cwd=grid_src)
+    clone_repository(grid_src, args.grid_repo, args.grid_branch, update=args.grid_pull)
 
     _patch_setdevice(grid_src)
     run("./bootstrap.sh", cwd=grid_src)

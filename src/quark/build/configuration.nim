@@ -19,7 +19,7 @@ Search order, first hit wins:
 
 1. `-d:quarkConfig=PATH`, an explicit path
 2. `$QUARK_CONFIG`, an explicit path in the environment
-3. `<quark source root>/../local/quark.conf`, the configuration belonging to a
+3. `<quark source root>/local/quark.conf`, the configuration belonging to a
    source checkout, which makes a development build work with no setup
 4. `~/.config/quark/config`, the per-user configuration an installed Quark uses
 
@@ -39,6 +39,10 @@ File format
 
 Keys before any section header are global. Later keys of the same name in a
 section replace earlier ones.
+
+Generated files declare `format = 2` and encode every other value as a JSON
+string, preserving whitespace and escapes. The unquoted legacy form above
+remains supported when no format marker is present.
 
 MIT License
 
@@ -66,9 +70,10 @@ SOFTWARE.
 import std/[macros]
 import std/[os]
 import std/[strutils]
+import std/[json]
 
 const
-  quarkConfigOverride* {.strdefine.} = ""
+  quarkConfigOverride* {.strdefine: "quarkConfig".} = ""
     ## Explicit configuration path, set with `-d:quarkConfig=PATH`.
 
   quarkConfigEnvVar* = "QUARK_CONFIG"
@@ -90,8 +95,7 @@ proc sourceRoot: string {.compileTime.} =
 
 proc findConfig: string {.compileTime.} =
   ## Return the path of the configuration to use, or the empty string.
-  if quarkConfigOverride.len > 0:
-    return quarkConfigOverride
+  if quarkConfigOverride.len > 0: return quarkConfigOverride
   let fromEnv = getEnv(quarkConfigEnvVar)
   if fromEnv.len > 0: return fromEnv
   let checkout = sourceRoot() / quarkCheckoutConfig
@@ -108,6 +112,10 @@ const
     ## Whether a Quark configuration was found.
 
   configText = when quarkConfigured: staticRead(quarkConfigPath) else: ""
+  jsonValues = "format = 2" in configText.splitLines
+
+when quarkConfigPath.len > 0 and not quarkConfigured:
+  {.error: "Quark configuration does not exist: " & quarkConfigPath.}
 
 proc lookup(section, key: string): string {.compileTime.} =
   ## Return the value of `key` within `section`, or the empty string.
@@ -124,7 +132,8 @@ proc lookup(section, key: string): string {.compileTime.} =
     let separator = line.find('=')
     if separator < 0: continue
     if line[0 ..< separator].strip == key:
-      result = line[separator + 1 .. line.high].strip
+      let value = line[separator + 1 .. line.high].strip
+      result = if jsonValues and key != "format": parseJson(value).getStr else: value
 
 proc quarkSetting*(backend, key: string): string {.compileTime.} =
   ## Return one backend's configured value for `key`, or the empty string.
@@ -147,7 +156,8 @@ proc quarkValues*(section, key: string): seq[string] {.compileTime.} =
     let separator = line.find('=')
     if separator < 0: continue
     if line[0 ..< separator].strip == key:
-      result.add line[separator + 1 .. line.high].strip
+      let value = line[separator + 1 .. line.high].strip
+      result.add (if jsonValues and key != "format": parseJson(value).getStr else: value)
 
 proc quarkGlobalSetting*(key: string): string {.compileTime.} =
   ## Return one configuration-wide value, or the empty string.
@@ -291,3 +301,9 @@ macro quarkBackendFlags*(name: static string): untyped =
     if flags.len > 0:
       result.add nnkPragma.newTree(
         nnkExprColonExpr.newTree(ident(pragma), newLit(flags)))
+
+when isMainModule:
+  # Resolve the report at compile time, just as an importing program does.
+  const report = quarkReportLines()
+  for line in report:
+    echo line

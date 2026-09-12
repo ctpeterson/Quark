@@ -63,6 +63,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from build.common import (  # noqa: E402
+    clone_repository,
     Layout, StageTracker, add_common_arguments, ensure_compiler, ensure_dir,
     resolve_nim, run, warn, which, write_manifest,
 )
@@ -124,10 +125,7 @@ BOOLEAN_OPTIONS: list[tuple[str, str, str]] = [
 def clone_quda(args: argparse.Namespace, layout: Layout) -> Path:
     """Clone or update the QUDA source checkout. Returns the source directory."""
     quda_src = layout.src / "quda"
-    if not quda_src.exists():
-        run(f"git clone --branch {args.quda_branch} {args.quda_repo} {quda_src}")
-    elif args.quda_pull:
-        run("git pull", cwd=quda_src)
+    clone_repository(quda_src, args.quda_repo, args.quda_branch, update=args.quda_pull)
     return quda_src
 
 

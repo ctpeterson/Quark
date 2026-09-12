@@ -1,4 +1,5 @@
 scratch/
+sketch
 
 # Everything bootstrap installs: backends, their dependencies, the Nim
 # toolchain, and the source trees they were built from.

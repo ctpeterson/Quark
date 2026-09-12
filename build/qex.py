@@ -54,6 +54,7 @@ SOFTWARE.
 from __future__ import annotations
 
 import argparse
+import json
 import shlex
 import subprocess
 import sys
@@ -62,6 +63,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from build.common import (  # noqa: E402
+    clone_repository,
     Layout, StageTracker, add_common_arguments, build_or_spack, download,
     ensure_compiler, ensure_dir, ensure_spack, lib_installed, resolve_nim,
     run, warn, write_manifest,
@@ -108,8 +110,7 @@ def build_qmp(layout: Layout, cc: str, comms: str, jobs: str) -> None:
     src = layout.source("qmp")
     stem = f"qmp-{QMP_VERSION}"
     tarball = f"{stem}.tar.gz"
-    if not (src / tarball).exists():
-        download(f"{USQCD_DOWNLOADS}/qmp/{tarball}", src / tarball)
+    download(f"{USQCD_DOWNLOADS}/qmp/{tarball}", src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / stem
     run([str(build_dir / "configure"),
@@ -129,8 +130,7 @@ def build_qio(layout: Layout, cc: str, qmp_prefix: Path, jobs: str) -> None:
     src = layout.source("qio")
     stem = f"qio-{QIO_VERSION}"
     tarball = f"{stem}.tar.gz"
-    if not (src / tarball).exists():
-        download(f"{USQCD_DOWNLOADS}/qio/{tarball}", src / tarball)
+    download(f"{USQCD_DOWNLOADS}/qio/{tarball}", src / tarball)
     run(f"tar xf {tarball}", cwd=src)
     build_dir = src / stem
     run([str(build_dir / "configure"),
@@ -149,10 +149,7 @@ def build_qio(layout: Layout, cc: str, qmp_prefix: Path, jobs: str) -> None:
 def clone_qex(args: argparse.Namespace, layout: Layout) -> Path:
     """Clone or update the QEX source checkout. Returns the source directory."""
     qex_src = layout.src / "qex"
-    if not qex_src.exists():
-        run(f"git clone --branch {args.qex_branch} {args.qex_repo} {qex_src}")
-    elif args.qex_pull:
-        run("git pull", cwd=qex_src)
+    clone_repository(qex_src, args.qex_repo, args.qex_branch, update=args.qex_pull)
     return qex_src
 
 
@@ -340,7 +337,7 @@ def _configure_settings(args: argparse.Namespace, layout: Layout,
     # has to arrive as a Nim sequence literal rather than a bare string.
     nimargs = nimargs + (args.nim_arg or [])
     if nimargs:
-        literal = ", ".join(f'"{a}"' for a in nimargs)
+        literal = ", ".join(json.dumps(a, ensure_ascii=False) for a in nimargs)
         settings.append(f"nimargs:@[{literal}]")
 
     # ── Extra raw settings passed through verbatim ──────────────────
