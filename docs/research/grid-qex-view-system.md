@@ -2,6 +2,8 @@
 
 Research date: 2026-09-01
 
+Status: source evidence and exploratory adapter-design proposals. The proposals are not accepted implementation requirements. Consult [ROADMAP.md](../../ROADMAP.md) for milestone scope; evaluate any proposed adapter-specific state or access machinery during the QEX integration milestone, using backend facilities. This report does not prescribe Milestone 1 work. The scope-owned close model was subsequently accepted in [ADR 0006](../adr/0006-bind-view-access-to-lexical-scopes.md) and exercised by the Milestone 1 lifetime scaffold; native coherence and synchronization proposals remain for backend integration.
+
 ## Scope and source snapshots
 
 This report answers two questions:

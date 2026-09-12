@@ -4,6 +4,10 @@ The domain language for Quark, an experimental programming language for lattice 
 
 ## Language
 
+**Zero Abstraction Overhead**:
+The requirement that a Quark program adds no runtime work or storage compared with an equivalent direct-backend program preserving the same semantics, layout, precision, and execution placement. It is a portability constraint, not a claim that all backends or machines run at identical speed.
+_Avoid_: Best-effort optimization, negligible overhead, optional performance tuning
+
 **Capability Concept**:
 A small structural contract for one independently useful behavior that portable Quark code may require from adapter-owned types. It describes what a value can participate in rather than what category the value represents, without prescribing its concrete representation or semantic identity.
 _Avoid_: Type classification, backend base class, monolithic backend interface
@@ -16,6 +20,10 @@ _Avoid_: Backend scalar type, arithmetic mode
 The portable mathematical category of a numeric value: Integer, Real, or Complex. Numeric Kind does not prescribe its backend representation or expression machinery.
 _Avoid_: Precision, Field site type, backend scalar type
 
+**Numeric**:
+The compound capability `Numeric[P]` accepting Integer, Real, or Complex values at Precision `P`. It classifies adapter-owned values and expressions without prescribing their storage or requiring arithmetic.
+_Avoid_: Number (former compound concept name), concrete numeric family
+
 **Closed Numeric Arithmetic**:
 Arithmetic whose result remains a numeric value of the same Numeric Kind and Precision as its operands. Closure is semantic and does not require the result to have the same concrete backend type.
 _Avoid_: Concrete-type closure, eager evaluation
@@ -24,9 +32,17 @@ _Avoid_: Concrete-type closure, eager evaluation
 The portable result classification of mixed numeric arithmetic. The wider Precision wins, while Complex dominates Real and Real dominates Integer.
 _Avoid_: Operator precedence, backend-selected coercion
 
+**Spin**:
+A mathematical index-space tag around a vector or matrix, identifying its indices as spin indices while retaining its shape and component structure. Components may themselves be vectors or matrices, so selecting a spin component need not produce a numeric value.
+_Avoid_: Untagged vector dimension, Site Granularity, numeric representation
+
 **Lattice**:
-A finite site space that owns its Geometry and a resolved Layout and from which Decompositions are derived. Execution Context determines where operations execute; a Lattice does not own Fields.
+A finite site space with a Geometry, resolved Layout, and immutable Domain classification. Full Lattices are constructed directly; parity Lattices are derived from Full while preserving their source association, and Fields remain separate values.
 _Avoid_: Field container, lattice field, Decomposition
+
+**Lattice Conformability**:
+The relationship between Lattices of the same Domain classification sharing precisely the same Geometry and resolved Layout instances, including rank partitioning, packing, and Linearization, with derived selections preserving their source association. Separate Lattice values may be conformable; equal geometric extents alone or differing Layouts do not establish conformability.
+_Avoid_: Equal volume, equal dimensions, Lattice allocation identity
 
 **Geometry**:
 A finite logical index space with an extent in each direction. A Geometry may describe the complete Lattice or the result of applying a Partition.
@@ -60,37 +76,73 @@ _Avoid_: Packed Partition, Rank Geometry
 The part of a Layout that maps Scalar Sites, Packed Sites, and lanes to backend storage positions.
 _Avoid_: Logical coordinate, Rank Decomposition
 
+**Domain**:
+The immutable logical site selection of a Lattice, defining its iteration space and the support of Fields constructed on it. A selected subset is itself a Lattice with its own site organization and retained source association.
+_Avoid_: Decomposition Domain object, iteration filter, mutable Field tag
+
+**Domain Classification**:
+The classification of a Lattice's site selection: Full, Even Parity, or Odd Parity. It describes selection semantics without identifying the source Geometry or Layout instances.
+_Avoid_: Provenance, mutable checkerboard flag
+
 **Decomposition**:
-A Lattice-associated rule that assigns every logical site to exactly one named Decomposition Domain. It preserves the source Lattice's provenance while allowing each Domain its own site organization.
-_Avoid_: Partition, derived Lattice, iteration filter
+The classification of the rule underlying a Domain classification: No Decomposition for Full, or Site Parity for Even Parity and Odd Parity. It describes the rule without introducing a separate Decomposition object.
+_Avoid_: Decomposition object, Lattice identity
 
-**Decomposition Domain**:
-One immutable, named subset produced by a Decomposition. It carries its source Lattice and Decomposition provenance and may define both a Field's support and an iteration space.
-_Avoid_: Geometry, global parity label, mutable Field tag
-
-**Full Decomposition**:
-The identity Decomposition whose sole Domain contains the complete Lattice. Constructing a Field on that Domain is equivalent to constructing it directly from the Lattice.
+**Full Domain**:
+The default complete site selection of a directly constructed Lattice, classified by `Full`. Selecting Full preserves the original Lattice's conformability.
 _Avoid_: Site filter, copied Lattice
 
-**Even-Odd Decomposition**:
-A two-Domain Decomposition that assigns sites by lattice-site parity. `Even` and `Odd` identify Domains only together with their originating Lattice and Decomposition.
-_Avoid_: Red-black Grid, checkerboard storage layout, global parity
+**Parity Domain**:
+The site selection of a Lattice derived from Full by `EvenParity` or `OddParity`. The selection retains its source association; the two Parity Domains are disjoint and together cover the source Full Domain.
+_Avoid_: Even-Odd Decomposition, red-black Grid, checkerboard storage layout, global parity
 
 **Field**:
 A collection with one value of a specified site type at every site in its immutable Field Domain. A Field is associated with, but distinct from, the Lattice that established that Domain.
 _Avoid_: Lattice, lattice object, mutable Domain tag
 
+**Site Value**:
+The mathematical value associated with one Scalar Site of a Field, which may be numeric or tensor-valued. Its mathematical type is independent of Site Granularity: Packed Site access represents a layout-packed group of those values.
+_Avoid_: Site Index, tensor component, packed lane
+
+**Tensor Description**:
+The mathematical shape, component structure, and index-space tags of a tensor Site Value, independent of its native storage or access representation. A Field's tensor description is unchanged when execution placement or access granularity changes.
+_Avoid_: Standalone tensor storage, Field Site Proxy, backend value representation
+
+**Field Handle**:
+A reference to shared Field storage and its immutable Lattice association. Copying a handle shares the same Field; Whole-Field Assignment writes values into the destination Field's existing storage.
+_Avoid_: Implicit deep copy, independent Field allocation
+
 **Field Domain**:
-The immutable site set over which a Field is defined: either the complete Lattice or one Decomposition Domain. It determines valid Site Indices and the coverage of Whole-Field Assignment.
+The Domain of the Lattice on which a Field is constructed, fixed for the Field's lifetime. It determines valid Site Indices and the coverage of Whole-Field Assignment.
 _Avoid_: Iteration filter, mutable checkerboard flag
+
+**Field Expression**:
+A deferred pointwise computation over Fields on conformable Lattices, with numeric scalars broadcast across that Domain. It retains shared Field handles and captured scalar values; Field values are read when the computation is evaluated.
+_Avoid_: Temporary Field allocation, Field View, snapshot of Field values
+
+**Field Arithmetic**:
+Pointwise application of site-value arithmetic to Fields and Field Expressions. Operand order and grouping are preserved, and the result's site-value type follows the corresponding site operation and Numeric Promotion rules.
+_Avoid_: Implicit reduction, stencil, concrete-type closure
+
+**Pointwise Tensor Contraction**:
+A tensor operation applied independently at every site, with a full trace, determinant, or norm producing a Numeric-valued Field on the operand's conformable Lattice. It contracts tensor components without combining lattice sites.
+_Avoid_: Lattice Reduction, implicit global sum
+
+**Lattice Reduction**:
+An explicitly requested combination of values across a Lattice's selected sites, executed within an Execution Context. Tensor contraction within a site and combination across lattice sites are distinct operations.
+_Avoid_: Pointwise Field Arithmetic, backend-selected placement
 
 **Whole-Field Assignment**:
 An assignment that writes a value to every site in a Field's Domain. Its enclosing Execution Context determines where it executes.
 _Avoid_: Field View assignment, Site assignment, backend-selected placement
 
 **Field View**:
-A scoped, access-qualified handle to a Field. It preserves the Field's Lattice and site-value semantics while declaring how the Field may be accessed during the scope.
+A scoped, access-qualified handle to a Field that preserves its Lattice provenance, Domain, and site-value semantics. Its access lifetime ends when its owning scope exits, at the latest when its enclosing Execution Context exits; copied handles and Site Proxies do not extend that lifetime.
 _Avoid_: Field copy, independent Field
+
+**Field Site Proxy**:
+Access to a Field's Site Value or a packed group of Site Values, exposing the numeric, vector, or tensor algebra of its site type as permitted by the Field View's access mode. Component access preserves those permissions, scope, and site provenance while exposing the algebra of the selected component.
+_Avoid_: Site Index, independent Site Value, mandatory arithmetic-result type
 
 **Field View Access Mode**:
 The permission and data-preservation contract attached to a Field View. Every Field View has exactly one mode: Read, ReadWrite, or WriteDiscard.
@@ -109,23 +161,23 @@ A Field View Access Mode that makes existing values unavailable and requires eve
 _Avoid_: WriteOnly, Write
 
 **Site Index**:
-A typed reference yielded by one Domain's iteration space and valid only for Fields associated with that Lattice and Domain. Its kind determines what kind of site value that access produces.
+A typed reference yielded by a Lattice's iteration space and valid only for Fields associated with a conformable Lattice. Its kind determines what kind of site value that access produces.
 _Avoid_: Raw integer index, universal site number
 
 **Scalar Site**:
-A Site Index for one site in the current rank's Rank Geometry. Indexing a Field with a Scalar Site produces one scalar site value.
+A Site Index for one logical site in the current rank's portion of a Domain. Indexing a Field with a Scalar Site accesses one Site Value, whether numeric or tensor-valued.
 _Avoid_: Local Site, scalar site number
 
 **Packed Site**:
-A Site Index for one site in the Packed Geometry, representing one layout-defined group of Scalar Sites. Indexing a Field with a Packed Site produces the group's packed site value, independent of Execution Context.
+A Site Index for one group of Scalar Sites in a Domain's resolved site organization, with the Full Domain using the Lattice's Packed Geometry. Indexing a Field with a Packed Site produces the group's packed site value, independent of Execution Context.
 _Avoid_: SIMD Site, packed site number
 
 **Site Granularity**:
-An explicit choice of Scalar or Packed that selects which Site Index kind a Lattice iteration space yields.
+An explicit choice of Scalar or Packed that selects which Site Index kind a Domain's iteration space yields, with direct Lattice iteration using the Full Domain.
 _Avoid_: Packing hint, backend vector width
 
 **Execution Context**:
-A required lexical scope selecting where its Whole-Field Assignments, Field Views, and Parallel Site Loops execute. Quark defines Host and Accelerator Execution Contexts; the selected backend supplies their concrete assignment, access, and loop constructs.
+A required lexical scope selecting where its Whole-Field Assignments, Field Views, Parallel Site Loops, and Lattice Reductions execute. Quark defines Host and Accelerator Execution Contexts; the selected backend supplies their concrete execution and access constructs.
 _Avoid_: Optimization hint, platform detection
 
 **Host Execution Context**:

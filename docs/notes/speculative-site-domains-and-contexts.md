@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 
-Status: partially superseded. Oracle B and ADR 0003 settle the Decomposition Domain semantics discussed below; broader iteration-only Site Domains remain speculative and do not change frozen Oracle A.
+Status: partially superseded. Oracle B and ADR 0003 settle direct Domain selection and immutable Field support; broader iteration-only Site Domains remain speculative and do not change frozen Oracle A.
 
 ## Current shape
 
@@ -28,7 +28,7 @@ A future oracle may need to select a subset of a Field Domain independently of b
 
 - interior or boundary sites for communication overlap.
 
-The tentative canonical term is **Site Domain**: an iteration-only subset of a Field Domain. Unlike the immutable Decomposition Domain established by Oracle B, selecting a Site Domain does not reinterpret Field storage or change Field identity. One possible source shape is:
+The tentative canonical term is **Site Domain**: an iteration-only subset of a Field Domain. Oracle B's Domain fixes support when a Field is constructed; a future iteration-only selection would leave that Field's support and identity unchanged. One possible source shape is:
 
 ```nim
 within Accelerator:
